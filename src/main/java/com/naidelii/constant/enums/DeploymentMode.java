@@ -1,5 +1,6 @@
 package com.naidelii.constant.enums;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
@@ -7,14 +8,17 @@ import lombok.Getter;
  */
 
 @Getter
+@AllArgsConstructor
 public enum DeploymentMode {
     /**
      * 单机部署
      */
-    SINGLE_NODE,
+    SINGLE_NODE("Standalone/deploy_service.sh"),
     /**
      * 集群部署
      */
-    CLUSTER;
+    CLUSTER("Distributed/ansible_deploy.sh");
+
+    private final String scriptPath;
 
 }

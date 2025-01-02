@@ -22,11 +22,6 @@ public class DeployProperties {
     private String jarSavePath;
 
     /**
-     * 部署脚本
-     */
-    private String deployScriptPath;
-
-    /**
      * 密码盐
      */
     private String salt;
