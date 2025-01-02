@@ -1,0 +1,28 @@
+server:
+  port: 29999
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: deploy
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# 部署信息
+deploy:
+  # JAR包保存路径，使用环境变量支持来更方便地配置不同环境的路径
+  jar-save-path: ${DEPLOY_PATH:/data/data/deploy/jar}
+  # 部署脚本路径，支持通过环境变量配置不同的脚本路径
+  deploy-script-path: ${DEPLOY_SCRIPT_PATH:/data/data/deploy/deploy_service.sh}
+  # 密码盐
+  salt: eOPlbGS1Amn4zpww5ZVfIg==
+  # 接口超时时间
+  timeout:
+    # 超时时间的数值
+    value: 5
+    # 超时时间单位，默认为分钟
+    unit: minutes
+

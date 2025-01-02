@@ -1,0 +1,115 @@
+---
+# Playbook 开始，定义要在目标主机上执行的任务
+# 指定目标主机列表，使用变量 'hosts' 动态传入
+- hosts: '{{hosts}}'
+  # 使用 root 权限执行以下任务，确保有足够的权限进行安装和启动服务
+  become: yes
+  # 定义一些路径变量，方便后续使用
+  vars:
+    # JAR包部署目录
+    deployment_directory: "/data/data/deploy/jar"
+    # JAR包备份目录
+    backup_directory: "/data/data/deploy/jar/backup"
+    # 本地 JAR 文件目录
+    local_jar_directory: "{{ jar_path }}"
+    # JAR 文件名
+    jar_filename: "{{ jar_name }}"
+    # 服务的名称
+    service_name: "{{ deploy_service }}"
+    # systemd 服务文件的路径
+    service_file: "/usr/lib/systemd/system/{{ service_name }}.service"
+
+  # 任务列表
+  tasks:
+    # 1.确保目标部署目录存在
+    - name: "确保部署目录存在"
+      file:
+        path: "{{ deployment_directory }}"
+        state: directory
+        mode: '0755'
+
+    # 2.确保备份目录存在
+    - name: "确保备份目录存在"
+      file:
+        path: "{{ backup_directory }}"
+        state: directory
+        mode: '0755'
+
+    # 3.执行备份任务
+    - name: "备份现有 JAR 文件"
+      copy:
+        src: "{{ deployment_directory }}/{{ jar_filename }}"
+        dest: "{{ backup_directory }}/{{ jar_filename }}-backup-{{ ansible_date_time.iso8601_basic }}"
+        owner: deploy
+        group: deploy
+        mode: '0644'
+        remote_src: yes
+
+    # 4.上传新的 JAR 文件到目标服务器
+    - name: "上传新的 JAR 文件到目标服务器"
+      copy:
+        src: "{{ local_jar_directory }}/{{ jar_filename }}"
+        dest: "{{ deployment_directory }}/{{ jar_filename }}"
+        owner: deploy
+        group: deploy
+        mode: 0644
+
+
+    # 5.检查 systemd 服务文件是否存在，避免重复创建
+    - name: "检查 systemd 服务文件是否存在"
+      stat:
+        path: "{{ service_file }}"  # 检查 systemd 服务文件是否存在
+      register: service_file_status
+
+    # 6.创建 systemd 服务文件"
+    - name: "创建 systemd 服务文件"
+      copy:
+        content: |
+          [Unit]
+          Description={{ service_name }}
+          After=syslog.target network.target remote-fs.target nss-lookup.target
+
+          [Service]
+          Type=simple
+
+          User=deploy
+          Group=deploy
+
+          ExecStart=/usr/bin/java -jar -DLOG_PATH=/data/log/jar/{{service_name}} /data/data/deploy/jar/{{ jar_filename }} --spring.profiles.active=prod
+          ExecStop=/bin/kill -s QUIT \$MAINPID
+          ExecReload=/bin/kill -s HUP \$MAINPID
+
+          PrivateTmp=true
+
+          [Install]
+          WantedBy=multi-user.target
+        # 将 Tomcat 的 systemd 服务文件复制到系统服务目录
+        dest: "{{ service_file }}"
+        # 设置服务文件的权限为可读，确保 systemd 可以读取并管理该服务
+        mode: '0644'
+      # 如果服务文件不存在才创建
+      when: not service_file_status.stat.exists
+
+    # 7.重新加载 systemd 配置
+    - name: "重新加载 systemd 配置"
+      systemd:
+        daemon_reload: yes  # 重新加载 systemd 配置，确保服务文件生效
+      when: service_file_status.stat.exists == false  # 只在服务文件创建时需要重新加载
+
+    # 8.重启服务
+    - name: "重启服务"
+      systemd:
+        name: "{{service_name}}.service"
+        state: restarted
+
+    # 9.查看服务状态
+    - name: "查看服务状态"
+      systemd:
+        name: "{{ service_name }}.service"
+        state: status  # 查询服务状态
+      register: service_status
+
+    - name: "显示服务状态信息"
+      debug:
+        msg: "{{ service_status }}"
+      when: service_status is defined
