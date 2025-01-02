@@ -5,7 +5,6 @@ import com.naidelii.constant.CommonConstants;
 import com.naidelii.dto.DeployPackageDTO;
 import com.naidelii.exception.GlobalException;
 import com.naidelii.service.IDeployService;
-import com.naidelii.utils.FileUtils;
 import com.naidelii.utils.ScriptUtils;
 import com.naidelii.utils.ValidationUtils;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -39,15 +37,14 @@ public class DeployServiceImpl implements IDeployService {
         // 校验上传的文件
         validateUpload(packageDTO);
 
-        // 保存文件
+        // 保存Jar包
         File jarFile = new File(deployProperties.getJarSavePath(), packageDTO.getJarName());
 
         try {
-            FileUtils.saveFile(packageDTO.getFile(), jarFile);
-            log.info("文件保存成功: {}", jarFile.getAbsolutePath());
+            saveFile(packageDTO.getFile(), jarFile);
 
-            // 执行部署脚本
-            executeScript(deployProperties.getDeploymentMode().getScriptPath(), packageDTO.getJarName(), deployProperties.getJarSavePath());
+            // 执行脚本
+            executeScript(packageDTO.getJarName());
             log.info("服务部署成功");
         } catch (IOException | InterruptedException e) {
             log.error("部署脚本执行失败", e);
@@ -55,25 +52,25 @@ public class DeployServiceImpl implements IDeployService {
         }
     }
 
-    private void executeScript(String scriptPath, String jarName, String jarSavePath) throws IOException, InterruptedException {
-        URL resourceUrl = getClass().getClassLoader().getResource(scriptPath);
-        if (resourceUrl == null) {
-            throw new GlobalException("脚本文件未找到: " + scriptPath);
+    public static void saveFile(MultipartFile file, File targetFile) throws IOException {
+        File targetDir = targetFile.getParentFile();
+        if (!targetDir.exists() && !targetDir.mkdirs()) {
+            throw new IOException("无法创建目录: " + targetDir.getAbsolutePath());
         }
-        File scriptFile = FileUtils.extractFileFromResourceToTempFile(resourceUrl, "deploy_script_", ".sh");
-        try {
-            FileUtils.checkFilePermissions(scriptFile);
-            Process process = ScriptUtils.buildProcess(scriptFile, jarName, jarSavePath);
-            String scriptOutput = ScriptUtils.readScriptOutput(process);
-            log.info("脚本执行日志: \n{}", scriptOutput);
+        file.transferTo(targetFile);
+        log.info("文件保存成功: {}", targetFile.getAbsolutePath());
+    }
 
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                log.error("脚本执行失败，退出码: {}", exitCode);
-                throw new GlobalException("部署脚本执行失败");
-            }
-        } finally {
-            FileUtils.deleteFile(scriptFile);
+
+    private void executeScript(String jarName) throws IOException, InterruptedException {
+        Process process = ScriptUtils.buildProcess(deployProperties.getDeployScriptPath(), jarName, deployProperties.getJarSavePath());
+        String scriptOutput = ScriptUtils.readScriptOutput(process);
+        log.info("脚本执行日志: \n{}", scriptOutput);
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            log.error("脚本执行失败，退出码: {}", exitCode);
+            throw new GlobalException("部署脚本执行失败");
         }
     }
 

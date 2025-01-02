@@ -1,6 +1,5 @@
 package com.naidelii.config;
 
-import com.naidelii.constant.enums.DeploymentMode;
 import com.naidelii.exception.GlobalException;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +16,11 @@ import java.util.concurrent.TimeUnit;
 public class DeployProperties {
 
     /**
+     * 部署脚本存放路径
+     */
+    private String deployScriptPath;
+
+    /**
      * JAR包保存路径
      */
     private String jarSavePath;
@@ -25,11 +29,6 @@ public class DeployProperties {
      * 密码盐
      */
     private String salt;
-
-    /**
-     * 部署方式，SINGLE_NODE（单机部署）或 CLUSTER（集群部署）
-     */
-    private DeploymentMode deploymentMode;
 
     /**
      * 超时时间配置
